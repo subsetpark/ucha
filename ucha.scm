@@ -22,11 +22,8 @@
 
 (define (process-row . columns)
   ; Ensure row length of >=3.
-  (let ([response columns])
-    (begin 
-      (do-until (>= (length response) 3)
-                (set! response (cons '() response))))
-    response))
+  (do ([response columns (cons '() response)])
+    ((>= (length response) 3) response)))
 
 (define (get-rows stmt arg) 
   (begin
