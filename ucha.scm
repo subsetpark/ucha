@@ -1,7 +1,13 @@
 ;;;; Implementation of the untitled shell history application.
-
+(include "db.scm")
 (use 
-  args data-structures filepath posix sqlite3 section-combinators fmt matchable loops)
+  args data-structures posix
+  section-combinators fmt 
+  matchable loops sqlite3
+  filepath
+  
+  db)
+
 
 (: verbose-mode boolean)
 (define verbose-mode #f)
@@ -9,27 +15,6 @@
 ;; Globals
 
 (define-type DbResponse (list (or string null) string fixnum))
-
-;; DB Operations
-
-(define (db-path)
-  (let* ([db-name ".esdb"]
-         [user-info (user-information (current-user-id) #t)]
-         [elements (list (vector-ref user-info 5) db-name)])
-    (filepath:join-path elements)))
-
-(define (db-open) (open-database (db-path)))
-
-(define (process-row . columns)
-  ; Ensure row length of >=3.
-  (do ([response columns (cons '() response)])
-    ((>= (length response) 3) response)))
-
-(define (get-rows stmt arg) 
-  (begin
-    (if verbose-mode 
-      (print "Executing SQL: " stmt " with args " arg))
-    (map-row process-row (db-open) stmt arg)))
 
 ;; Response Handling
 
@@ -51,7 +36,7 @@
 (define (search-db cwd)
   (let ([stmt (conc "SELECT count, cmd FROM history "
                     "WHERE cwd = ?")])
-    (get-rows stmt cwd)))
+    (get-rows stmt cwd verbose-mode)))
 
 (define (fmt-responses responses)
   (let* ([max-line-width (apply max (map line-width responses))]
