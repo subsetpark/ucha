@@ -1,8 +1,9 @@
-(module 
-  db 
-  (get-rows)
+(module
+  db
+  (search-db)
   (import scheme chicken)
-  (use sqlite3 filepath posix)
+  (use sqlite3 filepath posix data-structures)
+  (import flags)
 
   (define (db-path)
     (let* ([db-name ".esdb"]
@@ -17,10 +18,18 @@
     (do ([response columns (cons '() response)])
       ((>= (length response) 3) response)))
 
-  (define (get-rows stmt arg verbose-mode) 
-    (begin
-      (if verbose-mode 
-        (print "Executing SQL: " stmt " with args " arg))
-      (map-row process-row (db-open) stmt arg)))
+  (define (get-rows stmt interpolation-values)
+
+    (if (verbose-mode)
+      (print "Executing SQL:\n" stmt "\nWith arguments:\n" interpolation-values))
+
+    (let* ([arglist (list process-row (db-open) stmt)]
+           [cmd-args (append arglist interpolation-values)])
+      (apply map-row cmd-args)))
+
+  (define (search-db cwd number)
+    (let ([stmt (conc "SELECT count, cmd FROM history "
+                      "WHERE cwd = ? LIMIT ?")])
+      (get-rows stmt (list cwd number))))
 
   )

@@ -1,20 +1,14 @@
 ;;;; Implementation of the untitled shell history application.
+(include "flags.scm")
 (include "db.scm")
+
 (use 
   args data-structures posix
   section-combinators fmt 
   matchable loops sqlite3
-  filepath
-  
-  db)
+  filepath)
 
-
-(: verbose-mode boolean)
-(define verbose-mode #f)
-
-;; Globals
-
-(define-type DbResponse (list (or string null) string fixnum))
+(import db flags)
 
 ;; Response Handling
 
@@ -33,18 +27,13 @@
 
 ;; Search
 
-(define (search-db cwd)
-  (let ([stmt (conc "SELECT count, cmd FROM history "
-                    "WHERE cwd = ?")])
-    (get-rows stmt cwd verbose-mode)))
-
 (define (fmt-responses responses)
   (let* ([max-line-width (apply max (map line-width responses))]
          [strings (map (left-section to-line max-line-width) responses)])
     (string-join strings "")))
 
-(define (search-history dir)
-  (let [(results (search-db dir))]
+(define (search-history dir number)
+  (let [(results (search-db dir number))]
     (if (not (null-list? results))
       (print (fmt-responses results)))))
 
@@ -55,7 +44,9 @@
           (d dir) #:required "Specify directory to search [default: .]")
         (args:make-option 
           (v verbose) #:none "Verbose mode."
-          (set! verbose-mode #t))))
+          (set-verbose-mode #t))
+        (args:make-option
+          (n number) #:required "Number of results to display. [default: 5]")))
 
 (define (parse-dir dir)
   (match dir 
@@ -63,5 +54,6 @@
          [dir-name dir-name]))
 
 (receive (options operands) (args:parse (command-line-arguments) opts)
-         (let ((dir (alist-ref 'dir options)))
-           (search-history (parse-dir dir))))
+         (let ([dir (alist-ref 'dir options)]
+               [number (or (alist-ref 'number options) 5)])
+           (search-history (parse-dir dir) number)))
