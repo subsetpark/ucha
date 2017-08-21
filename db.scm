@@ -16,16 +16,15 @@
   (define (process-row . columns)
     ; Ensure row length of >=3.
     (do ([response columns (cons '() response)])
-      ((>= (length response) 3) response)))
+      ((>= (length response) 3)
+       response)))
 
   (define (get-rows stmt interpolation-values)
 
     (if (verbose-mode)
       (print "Executing SQL:\n" stmt "\nWith arguments:\n" interpolation-values))
 
-    (let* ([arglist (list process-row (db-open) stmt)]
-           [cmd-args (append arglist interpolation-values)])
-      (apply map-row cmd-args)))
+    (apply map-row process-row (db-open) stmt cmd-args))
 
   (define (search-db cwd number)
     (let ([stmt (conc "SELECT count, cmd FROM history "
