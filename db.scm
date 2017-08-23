@@ -2,7 +2,8 @@
   db
   (search-db)
   (import scheme chicken)
-  (use sqlite3 filepath posix data-structures)
+  (use srfi-1 srfi-13
+       sqlite3 filepath posix data-structures)
   (import flags)
 
   (define (db-path)
@@ -24,11 +25,26 @@
     (if (verbose-mode)
       (print "Executing SQL:\n" stmt "\nWith arguments:\n" interpolation-values))
 
-    (apply map-row process-row (db-open) stmt cmd-args))
+    (apply map-row process-row (db-open) stmt interpolation-values))
 
-  (define (search-db cwd number)
-    (let ([stmt (conc "SELECT count, cmd FROM history "
-                      "WHERE cwd = ? LIMIT ?")])
-      (get-rows stmt (list cwd number))))
+  (define (search-db cwd number search)
+    (let* ([stmt-slots
+             (vector
+               "SELECT count, cmd FROM history WHERE "
+               ""
+               "LIMIT ?")]
+           [interp-values '()])
+    (begin
+      (vector-set! stmt-slots 1 "cwd = ?")
+      (set! interp-values
+        (append! interp-values (list cwd))))
 
+      (if search
+        ; Where cmd LIKE search
+        )
+
+      (set! interp-values (append! interp-values (list number)))
+
+      (get-rows
+        (string-join (vector->list stmt-slots)) interp-values)))
   )
