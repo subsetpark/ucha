@@ -15,7 +15,9 @@
     (args:make-option
       (n number) #:required "Number of results to display. [default: 5]")
     (args:make-option
-      (s search) #:required "Search for substring.")))
+      (s search) #:required "Search for substring.")
+    (args:make-option
+      (t time) #:none "Order by most recently entered.")))
 
 (use
   data-structures posix
@@ -33,7 +35,7 @@
          [date (first response)]
          [cmd-length (string-length cmd)]
          [pad-length (- line-width cmd-length)])
-    (fmt #f cmd (pad pad-length) count (if (null? date) "" date) nl)))
+    (fmt #f cmd (space-to pad-length) count " " (if (null? date) "" date) nl)))
 
 (define (line-width response)
   ; Get the width of a command-count output, adding 2 for spacing
@@ -44,12 +46,13 @@
 (define (fmt-responses responses)
   (let* ([max-line-width (apply max (map line-width responses))]
          [strings (map (left-section to-line max-line-width) responses)])
-    (string-join strings "")))
+    (string-concatenate strings)))
 
 (define (search-history . args)
-  (let [(results (apply search-db args))]
+  (let* ([results (apply search-db args)]
+         [formatted (fmt-responses results)])
     (if (not (null-list? results))
-      (print (fmt-responses results)))))
+      (print formatted))))
 
 ;; Args and main
 
@@ -65,5 +68,6 @@
   (define (opt x) (alist-ref x options))
   (let* ([dir (parse-dir (opt 'dir))]
          [number (or (opt 'number) 5)]
-         [search (opt 'search)])
-    (search-history dir number search)))
+         [search (opt 'search)]
+         [order-by (if (opt 'time) entered_on: count:)])
+    (search-history dir number search order-by)))

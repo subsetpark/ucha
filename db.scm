@@ -28,19 +28,25 @@
 
     (apply map-row process-row (db-open) stmt interpolation-values))
 
-  (define (make-stmt search)
-    (let ([search-elems (list "%" search "%")]
-          [search-stmt
-            (if search
-              `(like cmd ,(string-join search-elems "")) 1)])
-      `(select
-         (columns count cmd)
-         (from history)
-         (where (and (= cwd ?) ,search-stmt)))))
+  (define (make-stmt cwd search order-by)
+    (let* ([count-column (if (eq? order-by count:) 'count '(sum count))]
+           [search-columns (if (eq? order-by count:)
+                             `(columns ,count-column cmd)
+                             `(columns entered_on ,count-column cmd))]
+           [cwd-stmt (if cwd `(= cwd ,cwd) 1)]
+           [search-elems `("%" ,search "%")]
+           [cmd-stmt (if search
+                       `(like cmd ,(string-concatenate search-elems)) 1)]
+           [group-stmt (if cwd '() '(group cmd))])
+    `(select ,search-columns
+       (from history)
+       (where (and ,cwd-stmt ,cmd-stmt))
+       (desc (order ,order-by))
+       ,group-stmt)))
 
-  (define (search-db cwd number search)
-    (let ([stmt (string-join
-                  (list (ssql->sql #f (make-stmt search)) "LIMIT ?")
-                  " ")])
-      (get-rows stmt (list cwd number))))
-  )
+(define (search-db cwd number search order-by)
+  (let ([stmt (string-join
+                (list (ssql->sql #f (make-stmt cwd search order-by)) "LIMIT ?")
+                " ")])
+    (get-rows stmt (list number))))
+)
