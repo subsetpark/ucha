@@ -22,31 +22,41 @@
        response)))
 
   (define (get-rows stmt interpolation-values)
-
     (if (verbose-mode)
       (print "Executing SQL:\n" stmt "\nWith arguments:\n" interpolation-values))
-
     (apply map-row process-row (db-open) stmt interpolation-values))
 
-  (define (make-stmt cwd search order-by)
+  (define (make-stmt cwd number search order-by recurse)
     (let* ([count-column (if (eq? order-by count:) 'count '(sum count))]
-           [search-columns (if (eq? order-by count:)
-                             `(columns ,count-column cmd)
-                             `(columns entered_on ,count-column cmd))]
-           [cwd-stmt (if cwd `(= cwd ,cwd) 1)]
-           [search-elems `("%" ,search "%")]
-           [cmd-stmt (if search
-                       `(like cmd ,(string-concatenate search-elems)) 1)]
-           [group-stmt (if cwd '() '(group cmd))])
-    `(select ,search-columns
-       (from history)
-       (where (and ,cwd-stmt ,cmd-stmt))
-       (desc (order ,order-by))
-       ,group-stmt)))
+           [search-columns (if (eq? order-by entered_on:)
+                             `(columns entered_on ,count-column cmd)
+                             `(columns ,count-column cmd))]
 
-(define (search-db cwd number search order-by)
-  (let ([stmt (string-join
-                (list (ssql->sql #f (make-stmt cwd search order-by)) "LIMIT ?")
-                " ")])
-    (get-rows stmt (list number))))
-)
+           [cwd-=-where (if cwd `(= cwd ?) 1)]
+           [cwd-elems `(string-append ? "/%")]
+           [cwd-like-where (if cwd `(like cwd ,cwd-elems) 1)]
+           [cwd-where (if recurse `(or ,cwd-=-where ,cwd-like-where) cwd-=-where)]
+
+           [search-elems `(string-append "%" ? "%")]
+           [cmd-where (if search
+                        `(like cmd ,search-elems) 1)]
+
+           [where-stmt `(where (and ,cwd-where ,cmd-where))]
+           [group-stmt (if cwd '() '(group cmd))]
+           [order-stmt `(desc (order ,order-by))])
+
+      (values
+        `(select ,search-columns
+                 (from history)
+                 ,where-stmt
+                 ,group-stmt
+                 ,order-stmt)
+        (list cwd (if recurse cwd #f) search number))))
+
+  (define (search-db . stmt-parameters)
+    (receive (stmt-ssql arglist) (apply make-stmt stmt-parameters)
+             (let* ([stmt-sql (ssql->sql #f stmt-ssql)]
+                    [stmt-elems (list stmt-sql "LIMIT ?")]
+                    [stmt (string-join stmt-elems " ")]
+                    [args (filter identity arglist)])
+               (get-rows stmt args)))))

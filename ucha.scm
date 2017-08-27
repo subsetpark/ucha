@@ -17,12 +17,14 @@
     (args:make-option
       (s search) #:required "Search for substring.")
     (args:make-option
-      (t time) #:none "Order by most recently entered.")))
+      (t time) #:none "Order by most recently entered.")
+    (args:make-option
+      (r recurse) #:none "Recurse into contained directories.")))
 
 (use
-  data-structures posix
+  posix
   section-combinators fmt
-  matchable loops sqlite3
+  matchable sqlite3
   filepath)
 
 
@@ -32,20 +34,16 @@
   ; Format a single db response into a single line.
   (let* ([cmd (third response)]
          [count (second response)]
-         [date (first response)]
-         [cmd-length (string-length cmd)]
-         [pad-length (- line-width cmd-length)])
-    (fmt #f cmd (space-to pad-length) count " " (if (null? date) "" date) nl)))
-
-(define (line-width response)
-  ; Get the width of a command-count output, adding 2 for spacing
-  (fold + 0 (cons 2 (map (compose string-length ->string) response))))
+         [date (first response)])
+    (fmt #f cmd (space-to line-width) count "   " (if (null? date) "" date) fl)))
 
 ;; Search
 
 (define (fmt-responses responses)
-  (let* ([max-line-width (apply max (map line-width responses))]
-         [strings (map (left-section to-line max-line-width) responses)])
+    (define (cmd-width response)
+      (+ 2 (string-length (third response))))
+  (let* ([max-cmd-width (apply max (map cmd-width responses))]
+         [strings (map (left-section to-line max-cmd-width) responses)])
     (string-concatenate strings)))
 
 (define (search-history . args)
@@ -57,9 +55,11 @@
 ;; Args and main
 
 (define (parse-dir dir)
+  (let ([cur-dir (current-directory)])
   (match dir
-         ["." (current-directory)]
-         [dir-name dir-name]))
+         ["." cur-dir]
+         [".." (filepath:drop-trailing-path-separator (filepath:drop-file-name cur-dir))]
+         [dir-name dir-name])))
 
 (receive
   (options operands)
@@ -69,5 +69,6 @@
   (let* ([dir (parse-dir (opt 'dir))]
          [number (or (opt 'number) 5)]
          [search (opt 'search)]
-         [order-by (if (opt 'time) entered_on: count:)])
-    (search-history dir number search order-by)))
+         [order-by (if (opt 'time) entered_on: count:)]
+         [recurse (opt 'recurse)])
+    (search-history dir number search order-by recurse)))

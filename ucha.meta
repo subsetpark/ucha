@@ -1,0 +1,7 @@
+((author "Z. D. Smith")
+ (category tools)
+ (synopsis "An untitled shell history application port")
+ (license "BSD-3")
+ (needs
+   sqlite3 filepath ssql args combinators fmt)
+ (files "hello.scm" "hello.setup"))
