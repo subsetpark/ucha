@@ -19,7 +19,9 @@
     (args:make-option
       (t time) #:none "Order by most recently entered.")
     (args:make-option
-      (r recurse) #:none "Recurse into contained directories.")))
+      (r recurse) #:none "Recurse into contained directories.")
+    (args:make-option
+      (h help) #:none "Display usage information.")))
 
 (use
   posix
@@ -40,8 +42,8 @@
 ;; Search
 
 (define (fmt-responses responses)
-    (define (cmd-width response)
-      (+ 2 (string-length (third response))))
+  (define (cmd-width response)
+    (+ 2 (string-length (third response))))
   (let* ([max-cmd-width (apply max (map cmd-width responses))]
          [strings (map (left-section to-line max-cmd-width) responses)])
     (string-concatenate strings)))
@@ -56,19 +58,21 @@
 
 (define (parse-dir dir)
   (let ([cur-dir (current-directory)])
-  (match dir
-         ["." cur-dir]
-         [".." (filepath:drop-trailing-path-separator (filepath:drop-file-name cur-dir))]
-         [dir-name dir-name])))
+    (match dir
+           ["." cur-dir]
+           [".." (filepath:drop-trailing-path-separator (filepath:drop-file-name cur-dir))]
+           [dir-name dir-name])))
 
 (receive
   (options operands)
   (args:parse (command-line-arguments) opts)
 
   (define (opt x) (alist-ref x options))
-  (let* ([dir (parse-dir (opt 'dir))]
-         [number (or (opt 'number) 5)]
-         [search (opt 'search)]
-         [order-by (if (opt 'time) entered_on: count:)]
-         [recurse (opt 'recurse)])
-    (search-history dir number search order-by recurse)))
+  (if (opt 'help)
+    (print (args:usage opts))
+    (let* ([dir (parse-dir (opt 'dir))]
+           [number (or (opt 'number) 5)]
+           [search (opt 'search)]
+           [order-by (if (opt 'time) entered_on: count:)]
+           [recurse (opt 'recurse)])
+      (search-history dir number search order-by recurse))))
