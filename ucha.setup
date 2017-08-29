@@ -1,2 +1,2 @@
-(compile ucha.scm)
+(compile -O3 ucha.scm)
 (install-program 'ucha "ucha")

@@ -1,4 +1,8 @@
 ;;;; Implementation of the untitled shell history application.
+(cond-expand
+  (compiling (define (compiled?) #t))
+  (else (define (compiled?) #f)))
+
 (include "flags.scm")
 (include "db.scm")
 (import db flags)
@@ -7,8 +11,6 @@
 
 (define opts
   (list
-    (args:make-option
-      (d dir) #:required "Specify directory to search [default: .]")
     (args:make-option
       (v verbose) #:none "Verbose mode."
       (set-verbose-mode #t))
@@ -21,7 +23,11 @@
     (args:make-option
       (r recurse) #:none "Recurse into contained directories.")
     (args:make-option
-      (h help) #:none "Display usage information.")))
+      (h help) #:none "Display usage information.")
+    (args:make-option
+      (l lucky) #:none "I'm feeling lucky!")
+    (args:make-option
+      (c checksum) #:required "Checksum value to update history.")))
 
 (use
   posix
@@ -29,50 +35,73 @@
   matchable sqlite3
   filepath)
 
+;; Update
+(define (ignore-path)
+  (let* ([ignore-name ".ushaignore"]
+         [elements (list (home-dir) ignore-name)])
+    (filepath:join-path elements)))
 
-;; Response Handling
+(define (ignore? ignore-path cmd)
+  (let* ([base-command (first (string-split cmd))]
+         [stop? (lambda (l) (equal? l base-command))])
+    (with-input-from-file
+      ignore-path
+      (lambda ()
+        (do ([ignore-line (read-line) (read-line)])
+          ((or (eof-object? ignore-line)
+               (stop? ignore-line))
+           (stop? ignore-line)))))))
 
-(define (to-line line-width response)
-  ; Format a single db response into a single line.
-  (let* ([cmd (third response)]
-         [count (second response)]
-         [date (first response)])
-    (fmt #f cmd (space-to line-width) count "   " (if (null? date) "" date) fl)))
+(define (history-update cmd checksum)
+  (let ([cwd (current-directory)])
+    (cond [(ignore? (ignore-path) cmd)
+           (maybe-print "Ignoring ucha update: " cmd)]
+          [(db-checksum? checksum)
+           (maybe-print "Skipping update; checksum matches.")]
+          [else (db-insert cwd cmd checksum)])))
 
 ;; Search
 
 (define (fmt-responses responses)
-  (define (cmd-width response)
-    (+ 2 (string-length (third response))))
-  (let* ([max-cmd-width (apply max (map cmd-width responses))]
-         [strings (map (left-section to-line max-cmd-width) responses)])
-    (string-concatenate strings)))
+  (define (join-map r)
+    (string-join (map ->string r) "\n"))
+  (let* ([filtered (map (compose (left-section filter identity) reverse) responses)]
+         [zipped (apply zip filtered)]
+         [columns (map (compose dsp join-map) zipped)])
+    (fmt #t (apply columnar columns))))
 
-(define (search-history . args)
-  (let* ([results (apply search-db args)]
-         [formatted (fmt-responses results)])
-    (if (not (null-list? results))
-      (print formatted))))
+(define (history-search . args)
+  (let ([results (apply db-search args)])
+    (if (not (null? results))
+      (fmt-responses results))))
 
 ;; Args and main
 
 (define (parse-dir dir)
-  (let ([cur-dir (current-directory)])
+  (let ([cwd (current-directory)])
     (match dir
-           ["." cur-dir]
-           [".." (filepath:drop-trailing-path-separator (filepath:drop-file-name cur-dir))]
+           ["." cwd]
+           [".." (filepath:drop-trailing-path-separator (filepath:drop-file-name cwd))]
            [dir-name dir-name])))
 
 (receive
-  (options operands)
-  (args:parse (command-line-arguments) opts)
+  (options operands) (args:parse (command-line-arguments) opts)
+  (let ([opt (lambda (x) (alist-ref x options))])
+    (define (do-search dir)
+      (let ([number (or (opt 'number) 5)]
+            [search (opt 'search)]
+            [order-by (if (opt 'time) entered_on: count:)]
+            [recurse (opt 'recurse)]
+            [lucky (opt 'lucky)])
+        (history-search dir number search order-by recurse lucky)))
+    (define (do-insert cmd)
+      (let ([checksum (opt 'checksum)])
+        (history-update (string-join cmd) checksum)))
 
-  (define (opt x) (alist-ref x options))
-  (if (opt 'help)
-    (print (args:usage opts))
-    (let* ([dir (parse-dir (opt 'dir))]
-           [number (or (opt 'number) 5)]
-           [search (opt 'search)]
-           [order-by (if (opt 'time) entered_on: count:)]
-           [recurse (opt 'recurse)])
-      (search-history dir number search order-by recurse))))
+    (if (compiled?)
+      (if (opt 'help)
+        (print (args:usage opts))
+        (match operands
+               [() (do-search #f)]
+               [("insert" . cmd) (do-insert cmd)]
+               [(dir . _) (do-search (parse-dir dir))])))))
