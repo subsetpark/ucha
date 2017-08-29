@@ -65,8 +65,7 @@
 (define (fmt-responses responses)
   (define (join-map r)
     (string-join (map ->string r) "\n"))
-  (let* ([filtered (map (compose (left-section filter identity) reverse) responses)]
-         [zipped (apply zip filtered)]
+  (let* ([zipped (apply zip responses)]
          [columns (map (compose dsp join-map) zipped)])
     (fmt #t (apply columnar columns))))
 

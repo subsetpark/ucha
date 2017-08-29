@@ -14,16 +14,10 @@
               (filepath:join-path elements))))
       (open-database db-path)))
 
-  (define (process-row . columns)
-    ; Ensure row length of >=3.
-    (do ([response columns (cons #f response)])
-      ((>= (length response) 3)
-       response)))
-
   (define (get-rows stmt interpolation-values)
     (maybe-print
       "Executing SQL:\n" stmt "\nWith arguments:\n" interpolation-values)
-    (apply map-row process-row (db-open) stmt interpolation-values))
+    (apply map-row list (db-open) stmt interpolation-values))
 
   (define (make-stmt cwd number search order-by recurse lucky)
     (let* ([count-column (if cwd 'count '(sum count))]
@@ -31,8 +25,8 @@
            [search-columns
              (cond
                [lucky 'cmd]
-               [(eq? order-by entered_on:) `(columns ,datetime-column ,count-column cmd)]
-               [else `(columns ,count-column cmd)])]
+               [(eq? order-by entered_on:) `(columns cmd ,count-column ,datetime-column)]
+               [else `(columns cmd ,count-column)])]
 
            [cwd-=-where (if cwd `(= cwd ?) 1)]
            [cwd-elems `(string-append ? "/%")]
