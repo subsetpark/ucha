@@ -41,6 +41,7 @@
          [elements (list (home-dir) ignore-name)])
     (filepath:join-path elements)))
 
+(: ignore? (string string -> boolean))
 (define (ignore? ignore-path cmd)
   (let* ([base-command (first (string-split cmd))]
          [stop? (lambda (l) (equal? l base-command))])
@@ -52,6 +53,7 @@
                (stop? ignore-line))
            (stop? ignore-line)))))))
 
+(: history-update (string string -> undefined))
 (define (history-update cmd checksum)
   (let ([cwd (current-directory)])
     (cond [(ignore? (ignore-path) cmd)
@@ -61,7 +63,9 @@
           [else (db-insert cwd cmd checksum)])))
 
 ;; Search
+(define-type response (list-of string))
 
+(: fmt-responses ((list-of response) -> undefined))
 (define (fmt-responses responses)
   (define (join-map r)
     (string-join (map ->string r) "\n"))
@@ -76,6 +80,7 @@
 
 ;; Args and main
 
+(: parse-dir (string -> string))
 (define (parse-dir dir)
   (let ([cwd (current-directory)])
     (match dir
